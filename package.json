@@ -1,5 +1,5 @@
 {
-  "name": "exif-reader",
+  "name": "exif-reader-paras20xx",
   "version": "1.0.0",
   "description": "A small EXIF image metadata reader",
   "main": "index.js",
