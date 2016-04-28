@@ -28,12 +28,8 @@ module.exports = function(buffer) {
   if (ifdOffset !== 0)
     result.thumbnail = readTags(buffer, ifdOffset + 6, bigEndian, tags.exif);
   
-  // The following code seems to have a problem in working with some particular images (eg: test/data/images/Image-having-issue-with-ExifOffset.jpg)
-  // For such images, variable "numValues" inside "readTag()" function gets a very high value.
-  // That makes a loop in that function eat up a lot of memory and the process/worker would eventually crash.
-  // Commenting out the following code until this issue is fixed
-  // if (ifd0.ExifOffset)
-  //   result.exif = readTags(buffer, ifd0.ExifOffset + 6, bigEndian, tags.exif);
+  if (ifd0.ExifOffset)
+    result.exif = readTags(buffer, ifd0.ExifOffset + 6, bigEndian, tags.exif);
   
   if (ifd0.GPSInfo)
     result.gps = readTags(buffer, ifd0.GPSInfo + 6, bigEndian, tags.gps);
@@ -62,11 +58,14 @@ function readTags(buffer, offset, bigEndian, tags) {
     var key = tags[tag] || tag;
     var val = readTag(buffer, offset, bigEndian);
     
-    if (key in DATE_KEYS)
-      val = parseDate(val);
-    
-    res[key] = val;
-    offset += 10;
+    if (val !== null) {
+      if (key in DATE_KEYS)
+        val = parseDate(val);
+      res[key] = val;
+      offset += 10;
+    } else {
+      break;
+    }
   }
   
   return res;
@@ -76,6 +75,9 @@ var SIZE_LOOKUP = [1, 1, 2, 4, 8, 1, 1, 2, 4, 8];
 
 function readTag(buffer, offset, bigEndian) {
   var type = readUInt16(buffer, offset, bigEndian);
+  if (type < 1 || SIZE_LOOKUP.length < type) {      // This may happen due to incorrect data (eg: test/data/images/Image-having-issue-with-ExifOffset.jpg)
+    return null;
+  }
   var numValues = readUInt32(buffer, offset + 2, bigEndian);
   var valueSize = SIZE_LOOKUP[type - 1];
   var valueOffset = valueSize * numValues <= 4 ? offset + 6 : readUInt32(buffer, offset + 6, bigEndian) + 6;
