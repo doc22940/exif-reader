@@ -1,13 +1,14 @@
 var exif = require('../');
 var fs = require('fs');
-var assert = require('assert');
+var expect = require('unexpected').use(require('unexpected-check'));
+var chanceGenerators = require('chance-generators');
 var tetons = fs.readFileSync(__dirname + '/data/tetons.exif');
 var IMG_0774 = fs.readFileSync(__dirname + '/data/IMG_0774.exif');
 
 describe('exif-reader', function() {
   it('should read tiff and exif data', function() {
-    assert.deepEqual(exif(tetons),
-      { image: 
+    expect(exif(tetons), 'to equal',
+      { image:
          { Make: 'Canon',
            Model: 'Canon EOS D60',
            Orientation: 1,
@@ -15,25 +16,25 @@ describe('exif-reader', function() {
            YResolution: 300,
            ResolutionUnit: 2,
            Software: 'Adobe Photoshop CS Windows',
-           ModifyDate: new Date("2006-04-05T05:31:30.000Z"),
+           ModifyDate: new Date(Date.UTC(2006, 3, 4, 22, 31, 30)),
            Artist: 'Unspecified',
            Copyright: 'Unspecified',
            ExifOffset: 256 },
-        thumbnail: 
+        thumbnail:
          { Compression: 6,
            XResolution: 72,
            YResolution: 72,
            ResolutionUnit: 2,
            ThumbnailOffset: 1102,
            ThumbnailLength: 7050 },
-        exif: 
+        exif:
          { ExposureTime: 0.03333333333333333,
            FNumber: 19,
            ExposureProgram: 2,
            ISO: 100,
            ExifVersion: new Buffer([48, 50, 50, 48]),
-           DateTimeOriginal: new Date("2004-06-17T13:47:02.000Z"),
-           DateTimeDigitized: new Date("2004-06-17T13:47:02.000Z"),
+           DateTimeOriginal: new Date(Date.UTC(2004, 5, 17, 6, 47, 2)),
+           DateTimeDigitized: new Date(Date.UTC(2004, 5, 17, 6, 47, 2)),
            ComponentsConfiguration: new Buffer([1, 2, 3, 0]),
            CompressedBitsPerPixel: 9,
            ShutterSpeedValue: 4.906890869140625,
@@ -58,10 +59,10 @@ describe('exif-reader', function() {
            WhiteBalance: 0,
            SceneCaptureType: 0 } });
   });
-  
+
   it('should read gps data and other exif data', function() {
-    assert.deepEqual(exif(IMG_0774),
-      { image: 
+    expect(exif(IMG_0774), 'to equal',
+      { image:
          { Make: 'Apple',
            Model: 'iPhone 6',
            Orientation: 1,
@@ -69,17 +70,17 @@ describe('exif-reader', function() {
            YResolution: 72,
            ResolutionUnit: 2,
            Software: 'Photos 1.0',
-           ModifyDate: new Date("2015-03-01T01:13:57.000Z"),
+           ModifyDate: new Date(Date.UTC(2015, 1, 28, 17, 13, 57)),
            ExifOffset: 198,
            GPSInfo: 1008 },
-        exif: 
+        exif:
          { ExposureTime: 0.0020491803278688526,
            FNumber: 2.2,
            ExposureProgram: 2,
            ISO: 32,
            ExifVersion: new Buffer([48, 50, 50, 49]),
-           DateTimeOriginal: new Date("2015-03-01T01:13:57.000Z"),
-           DateTimeDigitized: new Date("2015-03-01T01:13:57.000Z"),
+           DateTimeOriginal: new Date(Date.UTC(2015, 1, 28, 17, 13, 57)),
+           DateTimeDigitized: new Date(Date.UTC(2015, 1, 28, 17, 13, 57)),
            ComponentsConfiguration: new Buffer([1, 2, 3, 0]),
            ShutterSpeedValue: 8.930864197530864,
            ApertureValue: 2.2750072066878064,
@@ -105,7 +106,7 @@ describe('exif-reader', function() {
            LensSpecification: [ 4.15, 4.15, 2.2, 2.2 ],
            LensMake: 'Apple',
            LensModel: 'iPhone 6 back camera 4.15mm f/2.2' },
-        gps: 
+        gps:
          { GPSLatitudeRef: 'N',
            GPSLatitude: [ 35, 18, 1.49 ],
            GPSLongitudeRef: 'W',
@@ -121,20 +122,98 @@ describe('exif-reader', function() {
            GPSDestBearing: 167.44014084507043,
            GPSDateStamp: '2015:03:01' } });
   });
-  
+
   it('should error when missing Exif tag', function() {
-    assert.throws(function() {
+    expect(function() {
       exif(new Buffer(50));
-    }, /buffer should start with "Exif"/);
+    }, 'to throw', /buffer should start with "Exif"/);
   });
-  
+
   it('should error when missing byte order marker', function() {
-    assert.throws(function() {
+    expect(function() {
       exif(new Buffer('Exif\0\0IM'));
-    }, /expected byte order marker/);
-    
-    assert.throws(function() {
+    }, 'to throw', /expected byte order marker/);
+
+    expect(function() {
       exif(new Buffer('Exif\0\0MI'));
-    }, /expected byte order marker/);
+    }, 'to throw', /expected byte order marker/);
+  });
+});
+
+describe('fuzz tests', function () {
+  this.timeout(60000);
+
+  expect.addAssertion('<any> [when] fuzzed by <function> <assertion>', function (expect, subject, generator) {
+    expect.errorMode = 'nested';
+    return expect(function (value) {
+        return expect.shift(value);
+    }, 'to be valid for all', generator(subject));
+  })
+
+  expect.addAssertion('<Buffer> to either parse or throw documented error', function (expect, subject) {
+    expect.errorMode = 'nested';
+    var startTime = Date.now();
+    var err;
+    try {
+      expect(exif(subject), 'to satisfy', {});
+    } catch (err) {
+      if (err.isUnexpected) {
+        throw err;
+      } else {
+        if ([
+          'Invalid EXIF data: buffer should start with "Exif".',
+          'Invalid EXIF data: expected byte order marker.',
+          'Invalid EXIF data: expected 0x002A.',
+          'Invalid EXIF data: ifdOffset < 8',
+          'Invalid EXIF data: Ends before ifdOffset'
+        ].indexOf(err.message) === -1) {
+          expect.errorMode = 'nested';
+          expect.fail('Threw unexpected error: ' + err.stack);
+        }
+      }
+    } finally {
+      // Guard against very slow runs:
+      expect(Date.now() - startTime, 'to be less than', 1000);
+    }
+  });
+
+  function mutateGenerator(g) {
+    return function mutate(buffer) {
+      var g = chanceGenerators(42);
+      return g.integer({min: 1, max: 10}).map(function (numMutations) {
+        var mutatedBuffer = new Buffer(buffer); // Make a copy
+        for (var i = 0 ; i < numMutations ; i += 1) {
+          var octetNumber = g.integer({min: 0, max: buffer.length})();
+          mutatedBuffer[octetNumber] = g.integer({min: 0, max: 255})();
+        }
+        return mutatedBuffer;
+      });
+    };
+  }
+
+  it('should parse or reject a randomly mutated EXIF data chunk based on the tetons fixture', function () {
+    expect(tetons, 'when fuzzed by', mutateGenerator(chanceGenerators(42)), 'to either parse or throw documented error');
+  });
+
+  it('should parse or reject a randomly mutated EXIF data chunk based on the IMG_0774 fixture', function () {
+    expect(IMG_0774, 'when fuzzed by', mutateGenerator(chanceGenerators(42)), 'to either parse or throw documented error');
+  });
+
+  function truncateGenerator(g) {
+    return function truncate(buffer) {
+      return g.integer({min: 0, max: tetons.length - 1}).map(function (truncateOffset) {
+        var truncatedBuffer = new Buffer(truncateOffset);
+          buffer.copy(truncatedBuffer, 0, 0, truncateOffset);
+          return truncatedBuffer;
+      });
+    }
+  }
+
+  it('should parse or reject a randomly truncated EXIF data chunk based on the tetons fixture', function () {
+    expect(tetons, 'when fuzzed by', truncateGenerator(chanceGenerators(42)), 'to either parse or throw documented error');
+  });
+
+  it('should parse or reject a randomly truncated EXIF data chunk based on the IMG_0774 fixture', function () {
+    expect(IMG_0774, 'when fuzzed by', truncateGenerator(chanceGenerators(42)), 'to either parse or throw documented error');
   });
 });
