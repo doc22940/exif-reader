@@ -36,10 +36,11 @@ module.exports = function(buffer) {
   }
   
   if (ifd0) {
-    // The following code seems to have a problem in working with some particular images (eg: test/data/images/Image-having-issue-with-ExifOffset.jpg)
-    // For such images, variable "numValues" inside "readTag()" function gets a very high value.
+    // NOTE: The issue described in this comment has been fixed and shouldn't occur again.
+    // For some images with corrupt exif data, the following code was having a problem.
+    // The bug was first noticed for the image (eg: test/data/images/Image-having-issue-with-ExifOffset.jpg)
+    // For such corrupt exif data, variable "numValues" inside "readTag()" function gets a very high value.
     // That makes a loop in that function eat up a lot of memory and the process/worker would eventually crash.
-    // Commenting out the following code until this issue is fixed
     if (ifd0.ExifOffset)
       result.exif = readTags(buffer, ifd0.ExifOffset + 6, bigEndian, tags.exif);
     
