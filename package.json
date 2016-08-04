@@ -28,6 +28,6 @@
     "chance-generators": "1.15.2",
     "mocha": "^2.1.0",
     "unexpected": "10.15.0",
-    "unexpected-check": "1.8.0"
+    "unexpected-check": "1.10.0"
   }
 }
